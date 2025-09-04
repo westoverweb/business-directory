@@ -28,6 +28,7 @@ class BusinessDirectory_Shortcodes {
         add_shortcode('business_map', array($this, 'business_map_shortcode'));
 		add_shortcode('business_map_link', array($this, 'business_map_link_shortcode'));
 		add_shortcode('business_current_jobs', array($this, 'business_current_jobs_shortcode'));
+		add_shortcode('business_listing_submission_form', ['BusinessDirectory_Shortcodes', 'business_listing_submission_form']);
     }
     
     /**
@@ -966,6 +967,118 @@ public function business_current_jobs_shortcode($atts) {
     wp_reset_postdata();
     return ob_get_clean();
 }
+/**
+     * Business Listing Submission Form Shortcode
+     * Usage: [business_listing_submission_form]
+     */
+    public static function business_listing_submission_form() {
+        $output = '';
+        $offer_message = '<div class="alert alert-info">Don\'t have a Google Business Page? Westover Web will create one for you at a discounted rate!</div>';
+        $admin_email = get_option('admin_email');
 
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bd_submit_listing'])) {
+
+            if (!isset($_POST['bd_nonce']) || !wp_verify_nonce($_POST['bd_nonce'], 'bd_submit_listing')) {
+                $output .= '<div class="alert alert-danger">Security check failed. Please try again.</div>';
+            } else {
+                $business_name = sanitize_text_field($_POST['business_name'] ?? '');
+                $business_phone = sanitize_text_field($_POST['business_phone'] ?? '');
+                $business_email = sanitize_email($_POST['business_email'] ?? '');
+                $business_website = esc_url_raw($_POST['business_website'] ?? '');
+                $business_address = sanitize_text_field($_POST['business_address'] ?? '');
+                $business_description = wp_kses_post($_POST['business_description'] ?? '');
+                $search_keywords = sanitize_text_field($_POST['search_keywords'] ?? '');
+                $google_business_url = esc_url_raw($_POST['google_business_url'] ?? '');
+
+                $business_logo_id = '';
+                if (!empty($_FILES['business_logo']['name'])) {
+                    require_once(ABSPATH . 'wp-admin/includes/file.php');
+                    require_once(ABSPATH . 'wp-admin/includes/image.php');
+                    $uploaded = media_handle_upload('business_logo', 0);
+                    if (!is_wp_error($uploaded)) {
+                        $business_logo_id = $uploaded;
+                    }
+                }
+
+                $post_id = wp_insert_post([
+                    'post_title'    => $business_name,
+                    'post_type'     => 'business-listing',
+                    'post_status'   => 'pending',
+                ]);
+
+                if ($post_id && !is_wp_error($post_id)) {
+                    // Set ACF fields
+                    update_field('business_phone', $business_phone, $post_id);
+                    update_field('business_email', $business_email, $post_id);
+                    update_field('business_website', $business_website, $post_id);
+                    update_field('business_address', $business_address, $post_id);
+                    update_field('business_logo', $business_logo_id, $post_id);
+                    update_field('business_description', $business_description, $post_id);
+                    update_field('search_keywords', $search_keywords, $post_id);
+                    update_field('google_business_url', $google_business_url, $post_id);
+
+                    // Send admin notification
+                    $message = "New business listing submitted:\n\n";
+                    $message .= "Name: $business_name\n";
+                    $message .= "Phone: $business_phone\n";
+                    $message .= "Email: $business_email\n";
+                    $message .= "Website: $business_website\n";
+                    $message .= "Address: $business_address\n";
+                    $message .= "Google Business URL: $google_business_url\n";
+                    $message .= "Description: $business_description\n";
+                    $message .= "Search Keywords: $search_keywords\n";
+                    $message .= "\nApprove in WP Admin.";
+
+                    wp_mail($admin_email, "Business Listing Submission: $business_name", $message);
+
+                    $output .= '<div class="alert alert-success">Thank you for your submission! Your listing will be reviewed and approved soon.</div>';
+                } else {
+                    $output .= '<div class="alert alert-danger">There was an error submitting your listing. Please try again.</div>';
+                }
+            }
+        }
+
+        ob_start();
+        ?>
+        <form method="POST" enctype="multipart/form-data" class="bd-business-listing-form">
+            <?php wp_nonce_field('bd_submit_listing', 'bd_nonce'); ?>
+
+            <label for="business_name">Business Name *</label>
+            <input type="text" name="business_name" id="business_name" required>
+
+            <label for="business_phone">Phone</label>
+            <input type="text" name="business_phone" id="business_phone">
+
+            <label for="business_email">Email</label>
+            <input type="email" name="business_email" id="business_email">
+
+            <label for="business_website">Website</label>
+            <input type="url" name="business_website" id="business_website">
+
+            <label for="business_address">Address</label>
+            <input type="text" name="business_address" id="business_address">
+
+            <label for="business_logo">Logo</label>
+            <input type="file" name="business_logo" id="business_logo" accept="image/*">
+
+            <label for="business_description">Description</label>
+            <textarea name="business_description" id="business_description" rows="4"></textarea>
+
+            <label for="search_keywords">Search Keywords</label>
+            <input type="text" name="search_keywords" id="search_keywords">
+
+            <label for="google_business_url">Google Business Page URL</label>
+            <input type="url" name="google_business_url" id="google_business_url">
+            <?php if (empty($_POST['google_business_url'] ?? '')): ?>
+                <?php echo $offer_message; ?>
+            <?php endif; ?>
+
+            <button type="submit" name="bd_submit_listing">Submit Listing</button>
+        </form>
+        <?php
+        $output .= ob_get_clean();
+        return $output;
+    }
+}
 }
 ?>
