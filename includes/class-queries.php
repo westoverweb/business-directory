@@ -70,34 +70,35 @@ class BusinessDirectory_Queries {
     public static function get_business_categories() {
         return get_terms(array(
             'taxonomy' => 'business-category',
-            'hide_empty' => true,
+            'hide_empty' => false,
         ));
     }
     
     public static function get_business_fields($post_id = null) {
-        if (!$post_id) {
-            $post_id = get_the_ID();
-        }
-        
-        $logo = get_field('logo', $post_id) ?: get_field('business_logo', $post_id) ?: get_field('image', $post_id);
-        
-        if (!$logo) {
-            $default_image_id = get_option('business_directory_default_image', '');
-            if ($default_image_id) {
-                $logo = wp_get_attachment_image_url($default_image_id, 'full');
-            }
-        }
-        
-        return array(
-            'phone' => get_field('phone', $post_id) ?: get_field('business_phone', $post_id),
-            'email' => get_field('email', $post_id) ?: get_field('business_email', $post_id),
-            'website' => get_field('website', $post_id) ?: get_field('business_website', $post_id),
-            'address' => get_field('address', $post_id) ?: get_field('business_address', $post_id),
-            'logo' => $logo,
-            'description' => get_field('description', $post_id) ?: get_field('business_description', $post_id),
-            'search_keywords' => get_field('search_keywords', $post_id) ?: get_field('business_search_keywords', $post_id),
-        );
+    if (!$post_id) {
+        $post_id = get_the_ID();
     }
+    
+    $logo = get_field('logo', $post_id) ?: get_field('business_logo', $post_id) ?: get_field('image', $post_id);
+    
+    if (!$logo) {
+        $default_image_id = get_option('business_directory_default_image', '');
+        if ($default_image_id) {
+            $logo = wp_get_attachment_image_url($default_image_id, 'full');
+        }
+    }
+    
+    return array(
+        'phone' => get_field('phone', $post_id) ?: get_field('business_phone', $post_id),
+        'email' => get_field('email', $post_id) ?: get_field('business_email', $post_id),
+        'website' => get_field('website', $post_id) ?: get_field('business_website', $post_id),
+        'address' => get_field('address', $post_id) ?: get_field('business_address', $post_id),
+        'logo' => $logo,
+        'description' => get_field('description', $post_id) ?: get_field('business_description', $post_id),
+        'search_keywords' => get_field('search_keywords', $post_id) ?: get_field('business_search_keywords', $post_id),
+        'google_business_url' => get_field('google_business_url', $post_id) ?: get_field('business_google_url', $post_id),
+    );
+}
     
     public static function get_business_categories_for_post($post_id = null) {
         if (!$post_id) {

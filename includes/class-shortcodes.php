@@ -1,7 +1,7 @@
 <?php
 /**
  * Business Directory Shortcodes Class
- * Handles all shortcode functionality
+ * Handles all shortcode functionality - NO CLEAR SEARCH FEATURE
  */
 
 if (!defined('ABSPATH')) {
@@ -12,6 +12,7 @@ class BusinessDirectory_Shortcodes {
     
     public function __construct() {
         $this->register_shortcodes();
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_form_scripts'));
     }
     
     public function register_shortcodes() {
@@ -26,13 +27,33 @@ class BusinessDirectory_Shortcodes {
         add_shortcode('business_website_link', array($this, 'business_website_link_shortcode'));
         add_shortcode('business_phone_link', array($this, 'business_phone_link_shortcode'));
         add_shortcode('business_map', array($this, 'business_map_shortcode'));
-		add_shortcode('business_map_link', array($this, 'business_map_link_shortcode'));
-		add_shortcode('business_current_jobs', array($this, 'business_current_jobs_shortcode'));
-		add_shortcode('business_listing_submission_form', ['BusinessDirectory_Shortcodes', 'business_listing_submission_form']);
+        add_shortcode('business_map_link', array($this, 'business_map_link_shortcode'));
+        add_shortcode('business_current_jobs', array($this, 'business_current_jobs_shortcode'));
+        add_shortcode('business_submission_form', array($this, 'business_submission_form_shortcode'));
+    }
+    
+    public function enqueue_form_scripts() {
+        global $post;
+        if ($post && has_shortcode($post->post_content, 'business_submission_form')) {
+            wp_enqueue_script(
+                'business-directory-forms',
+                BUSINESS_DIRECTORY_PLUGIN_URL . 'assets/forms.js',
+                array('jquery'),
+                BUSINESS_DIRECTORY_VERSION,
+                true
+            );
+            
+            wp_enqueue_style(
+                'business-directory-forms',
+                BUSINESS_DIRECTORY_PLUGIN_URL . 'assets/forms.css',
+                array(),
+                BUSINESS_DIRECTORY_VERSION
+            );
+        }
     }
     
     /**
-     * Main business directory shortcode
+     * Main business directory shortcode - NO CLEAR SEARCH BUTTONS
      */
     public function directory_shortcode($atts) {
         $atts = shortcode_atts(array(
@@ -68,11 +89,13 @@ class BusinessDirectory_Shortcodes {
                     <h1 class="directory-title">Search Results</h1>
                     <?php if ($atts['show_search_status'] === 'true'): ?>
                     <div class="search-status">
+                        <?php
+                        // Count total businesses that will be displayed
+                        $total_businesses = $business_query->found_posts;
+                        $result_text = $total_businesses === 1 ? 'result' : 'results';
+                        ?>
                         <p class="search-info">
-                            Showing results for: <strong>"<?php echo esc_html($search_term); ?>"</strong>
-                            <button type="button" class="clear-search-btn" data-clear-search="true">
-                                Clear Search
-                            </button>
+                            <span class="result-count"><?php echo $total_businesses; ?> <?php echo $result_text; ?></span> for: <strong>"<?php echo esc_html($search_term); ?>"</strong>
                         </p>
                     </div>
                     <?php endif; ?>
@@ -130,9 +153,8 @@ class BusinessDirectory_Shortcodes {
                     endwhile;
                     wp_reset_postdata();
                     
-                    // Add result count after listings load
+                    // Add result count data for JavaScript
                     if ($is_searching && $atts['show_search_status'] === 'true'): 
-                        // Store search term in data attribute for JavaScript to use
                         echo '<div id="search-data" data-search-term="' . esc_attr($search_term) . '" style="display:none;"></div>';
                     endif;
                 else:
@@ -157,6 +179,55 @@ class BusinessDirectory_Shortcodes {
                 
             </div>
             
+        </div>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Homepage search bar shortcode - NO CLEAR SEARCH
+     */
+    public function homepage_search_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'placeholder' => 'Search for businesses, services, or categories...',
+            'button_text' => 'Search',
+            'style' => 'default',
+        ), $atts);
+
+        // Get the main directory page URL for search results
+        $pages = get_posts(array(
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            's' => '[business_directory',
+        ));
+        
+        $search_url = !empty($pages) ? get_permalink($pages[0]->ID) : home_url('/business-directory/');
+
+        ob_start();
+        ?>
+        <div class="homepage-search-container <?php echo esc_attr('style-' . $atts['style']); ?>">
+            <form class="homepage-search-form" method="get" action="<?php echo esc_url($search_url); ?>">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                    </span>
+                    
+                    <input type="text" 
+                           name="business_search" 
+                           class="homepage-search-input" 
+                           placeholder="<?php echo esc_attr($atts['placeholder']); ?>"
+                           value="<?php echo esc_attr(isset($_GET['business_search']) ? $_GET['business_search'] : ''); ?>">
+                    
+                    <button type="submit" class="homepage-search-button">
+                        <?php echo esc_html($atts['button_text']); ?>
+                    </button>
+                </div>
+            </form>
         </div>
         <?php
         
@@ -215,7 +286,7 @@ class BusinessDirectory_Shortcodes {
                 
                 if ($business_query->have_posts()):
                     while ($business_query->have_posts()): $business_query->the_post();
-                        $this->render_business_card($atts, false); // false = don't show categories since we're on category page
+                        $this->render_business_card($atts, false);
                     endwhile;
                     wp_reset_postdata();
                 else:
@@ -272,7 +343,7 @@ class BusinessDirectory_Shortcodes {
                             <?php endif; ?>
                         <?php else: ?>
                             <div class="category-placeholder" style="width: 150px; height: 150px;">
-                                <span class="category-icon">📁</span>
+                                <span class="category-icon">📋</span>
                             </div>
                         <?php endif; ?>
                         
@@ -280,54 +351,6 @@ class BusinessDirectory_Shortcodes {
                     </a>
                 </div>
             <?php endforeach; ?>
-        </div>
-        <?php
-        
-        return ob_get_clean();
-    }
-    
-    /**
-     * Homepage search bar shortcode
-     */
-    public function homepage_search_shortcode($atts) {
-        $atts = shortcode_atts(array(
-            'placeholder' => 'Search for businesses, services, or categories...',
-            'button_text' => 'Search',
-        ), $atts);
-
-        // Get the main directory page URL for search results
-        $pages = get_posts(array(
-            'post_type' => 'page',
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            's' => '[business_directory',
-        ));
-        
-        $search_url = !empty($pages) ? get_permalink($pages[0]->ID) : home_url('/business-directory/');
-
-        ob_start();
-        ?>
-        <div class="homepage-search-container">
-            <form class="homepage-search-form" method="get" action="<?php echo esc_url($search_url); ?>">
-                <div class="search-input-wrapper">
-                    <span class="search-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="m21 21-4.35-4.35"/>
-                        </svg>
-                    </span>
-                    
-                    <input type="text" 
-                           name="business_search" 
-                           class="homepage-search-input" 
-                           placeholder="<?php echo esc_attr($atts['placeholder']); ?>"
-                           value="<?php echo esc_attr(isset($_GET['business_search']) ? $_GET['business_search'] : ''); ?>">
-                    
-                    <button type="submit" class="homepage-search-button">
-                        <?php echo esc_html($atts['button_text']); ?>
-                    </button>
-                </div>
-            </form>
         </div>
         <?php
         
@@ -376,7 +399,6 @@ class BusinessDirectory_Shortcodes {
     public function business_phone_link_shortcode($atts) {
         $atts = shortcode_atts(array(), $atts);
 
-        // Get current business listing
         $post_id = null;
         
         if (is_singular('business-listing')) {
@@ -394,14 +416,12 @@ class BusinessDirectory_Shortcodes {
             return '';
         }
 
-        // Get phone number
         $phone = get_field('business_phone', $post_id) ?: get_field('phone', $post_id);
         
         if (!$phone || trim($phone) === '') {
             return '';
         }
 
-        // Clean phone number for tel: link
         $clean_phone = preg_replace('/[^0-9+]/', '', $phone);
         
         if (empty($clean_phone)) {
@@ -421,7 +441,6 @@ class BusinessDirectory_Shortcodes {
             'text' => 'Call Now',
         ), $atts);
 
-        // Get current business listing
         $post_id = null;
         
         if (is_singular('business-listing')) {
@@ -435,23 +454,18 @@ class BusinessDirectory_Shortcodes {
             }
         }
         
-        // Return nothing if no post found
         if (!$post_id) {
             return '';
         }
 
-        // Get phone number
         $phone = get_field('business_phone', $post_id) ?: get_field('phone', $post_id);
         
-        // Return nothing if no phone number found or phone is empty/whitespace
         if (!$phone || trim($phone) === '') {
             return '';
         }
 
-        // Clean phone number and validate it has actual numbers
         $clean_phone = preg_replace('/[^0-9+]/', '', $phone);
         
-        // Return nothing if no valid phone digits found
         if (empty($clean_phone)) {
             return '';
         }
@@ -469,7 +483,6 @@ class BusinessDirectory_Shortcodes {
             'text' => 'Email Us',
         ), $atts);
 
-        // Get current business listing
         $post_id = null;
         
         if (is_singular('business-listing')) {
@@ -483,20 +496,16 @@ class BusinessDirectory_Shortcodes {
             }
         }
         
-        // Return nothing if no post found
         if (!$post_id) {
             return '';
         }
 
-        // Get email address
         $email = get_field('business_email', $post_id) ?: get_field('email', $post_id);
         
-        // Return nothing if no email found, empty, or invalid email format
         if (!$email || trim($email) === '' || !is_email($email)) {
             return '';
         }
 
-        // Build mailto link
         $mailto_link = 'mailto:' . $email;
         
         return '<a href="' . esc_url($mailto_link) . '" class="business-email-btn">' . esc_html($atts['text']) . '</a>';
@@ -507,10 +516,9 @@ class BusinessDirectory_Shortcodes {
      */
     public function business_address_link_shortcode($atts) {
         $atts = shortcode_atts(array(
-            'map_service' => 'auto', // auto, google, apple
+            'map_service' => 'auto',
         ), $atts);
 
-        // Get current business listing
         $post_id = null;
         
         if (is_singular('business-listing')) {
@@ -528,14 +536,12 @@ class BusinessDirectory_Shortcodes {
             return '';
         }
 
-        // Get address
         $address = get_field('business_address', $post_id) ?: get_field('address', $post_id);
         
         if (!$address || trim($address) === '') {
             return '';
         }
 
-        // Create map link based on service preference
         $encoded_address = urlencode($address);
         
         switch ($atts['map_service']) {
@@ -545,7 +551,7 @@ class BusinessDirectory_Shortcodes {
             case 'apple':
                 $map_url = 'http://maps.apple.com/?q=' . $encoded_address;
                 break;
-            default: // auto - uses device default
+            default:
                 $map_url = 'https://www.google.com/maps/search/?api=1&query=' . $encoded_address;
                 break;
         }
@@ -558,10 +564,9 @@ class BusinessDirectory_Shortcodes {
      */
     public function business_website_link_shortcode($atts) {
         $atts = shortcode_atts(array(
-            'text' => '', // Optional: custom text instead of URL
+            'text' => '',
         ), $atts);
 
-        // Get current business listing
         $post_id = null;
         
         if (is_singular('business-listing')) {
@@ -579,23 +584,19 @@ class BusinessDirectory_Shortcodes {
             return '';
         }
 
-        // Get website
         $website = get_field('business_website', $post_id) ?: get_field('website', $post_id);
         
         if (!$website || trim($website) === '') {
             return '';
         }
 
-        // Ensure URL has protocol
         if (!preg_match('/^https?:\/\//', $website)) {
             $website = 'https://' . $website;
         }
 
-        // Use custom text or clean URL for display
         if (!empty($atts['text'])) {
             $display_text = $atts['text'];
         } else {
-            // Clean URL for display (remove protocol and www)
             $display_text = preg_replace('/^https?:\/\/(www\.)?/', '', $website);
             $display_text = rtrim($display_text, '/');
         }
@@ -603,107 +604,48 @@ class BusinessDirectory_Shortcodes {
         return '<a href="' . esc_url($website) . '" target="_blank" rel="noopener">' . esc_html($display_text) . '</a>';
     }
 
-/**
- * Business map shortcode - displays Google Maps embed
- */
-public function business_map_shortcode($atts) {
-    $atts = shortcode_atts(array(
-        'width' => '100%',
-        'height' => '300px',
-        'zoom' => '15',
-        'maptype' => 'roadmap', // roadmap, satellite, hybrid, terrain
-        'show_directions' => 'true',
-        'style' => 'default', // default, minimal, card
-    ), $atts);
+    /**
+     * Business map shortcode - displays Google Maps embed
+     */
+    public function business_map_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'width' => '100%',
+            'height' => '300px',
+            'zoom' => '15',
+            'maptype' => 'roadmap',
+            'show_directions' => 'true',
+            'style' => 'default',
+        ), $atts);
 
-    // Get current business listing
-    $post_id = null;
-    
-    if (is_singular('business-listing')) {
-        $post_id = get_queried_object_id();
-    }
-    
-    if (!$post_id) {
-        global $post;
-        if ($post && $post->post_type === 'business-listing') {
-            $post_id = $post->ID;
+        $post_id = null;
+        
+        if (is_singular('business-listing')) {
+            $post_id = get_queried_object_id();
         }
-    }
-    
-    if (!$post_id) {
-        return '<p>Map can only be displayed on business listing pages.</p>';
-    }
+        
+        if (!$post_id) {
+            global $post;
+            if ($post && $post->post_type === 'business-listing') {
+                $post_id = $post->ID;
+            }
+        }
+        
+        if (!$post_id) {
+            return '<p>Map can only be displayed on business listing pages.</p>';
+        }
 
-    // Get address
-    $address = get_field('business_address', $post_id) ?: get_field('address', $post_id);
-    
-    if (!$address || trim($address) === '') {
-        return '<p>No address available for this business.</p>';
-    }
+        $address = get_field('business_address', $post_id) ?: get_field('address', $post_id);
+        
+        if (!$address || trim($address) === '') {
+            return '<p>No address available for this business.</p>';
+        }
 
-    // Clean and encode the address
-    $encoded_address = urlencode(trim($address));
-    
-    // Build the Google Maps embed URL
-    $embed_url = 'https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=' . $encoded_address;
-    
-    // Alternative: Use the iframe embed without API (more reliable)
-    $search_url = 'https://www.google.com/maps?q=' . $encoded_address . '&t=' . $atts['maptype'] . '&z=' . $atts['zoom'] . '&output=embed';
-    
-    // Get business name for aria-label
-    $business_name = get_the_title($post_id);
-    
-    ob_start();
-    
-    if ($atts['style'] === 'card'): ?>
-        <div class="business-map-card">
-            <div class="map-header">
-                <h4>Location</h4>
-                <div class="map-address"><?php echo esc_html($address); ?></div>
-            </div>
-            <div class="business-map-container">
-                <iframe 
-                    src="<?php echo esc_url($search_url); ?>"
-                    width="<?php echo esc_attr($atts['width']); ?>"
-                    height="<?php echo esc_attr($atts['height']); ?>"
-                    style="border:0;"
-                    allowfullscreen=""
-                    loading="lazy"
-                    referrerpolicy="no-referrer-when-downgrade"
-                    aria-label="Map showing location of <?php echo esc_attr($business_name); ?>">
-                </iframe>
-            </div>
-            <?php if ($atts['show_directions'] === 'true'): ?>
-            <div class="map-actions">
-                <a href="https://www.google.com/maps/dir/?api=1&destination=<?php echo esc_attr($encoded_address); ?>" 
-                   target="_blank" 
-                   rel="noopener"
-                   class="directions-btn">
-                    Get Directions
-                </a>
-                <a href="https://www.google.com/maps/search/?api=1&query=<?php echo esc_attr($encoded_address); ?>" 
-                   target="_blank" 
-                   rel="noopener"
-                   class="view-larger-btn">
-                    View Larger Map
-                </a>
-            </div>
-            <?php endif; ?>
-        </div>
-    <?php elseif ($atts['style'] === 'minimal'): ?>
-        <div class="business-map-minimal">
-            <iframe 
-                src="<?php echo esc_url($search_url); ?>"
-                width="<?php echo esc_attr($atts['width']); ?>"
-                height="<?php echo esc_attr($atts['height']); ?>"
-                style="border:0; border-radius: 8px;"
-                allowfullscreen=""
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                aria-label="Map showing location of <?php echo esc_attr($business_name); ?>">
-            </iframe>
-        </div>
-    <?php else: ?>
+        $encoded_address = urlencode(trim($address));
+        $search_url = 'https://www.google.com/maps?q=' . $encoded_address . '&t=' . $atts['maptype'] . '&z=' . $atts['zoom'] . '&output=embed';
+        $business_name = get_the_title($post_id);
+        
+        ob_start();
+        ?>
         <div class="business-map-container">
             <iframe 
                 src="<?php echo esc_url($search_url); ?>"
@@ -722,64 +664,259 @@ public function business_map_shortcode($atts) {
                    target="_blank" 
                    rel="noopener"
                    class="directions-link">
-                    📍 Get Directions to <?php echo esc_html($business_name); ?>
+                    Get Directions to <?php echo esc_html($business_name); ?>
                 </a>
             </div>
             <?php endif; ?>
         </div>
-    <?php endif;
-    
-    return ob_get_clean();
-}
-
-/**
- * Alternative: Business map link shortcode (just a link, no embed)
- */
-public function business_map_link_shortcode($atts) {
-    $atts = shortcode_atts(array(
-        'text' => 'View on Google Maps',
-        'directions' => 'false', // if true, shows "Get Directions" instead
-    ), $atts);
-
-    // Get current business listing
-    $post_id = null;
-    
-    if (is_singular('business-listing')) {
-        $post_id = get_queried_object_id();
+        <?php
+        
+        return ob_get_clean();
     }
-    
-    if (!$post_id) {
-        global $post;
-        if ($post && $post->post_type === 'business-listing') {
-            $post_id = $post->ID;
+
+    /**
+     * Business map link shortcode (just a link, no embed)
+     */
+    public function business_map_link_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'text' => 'View on Google Maps',
+            'directions' => 'false',
+        ), $atts);
+
+        $post_id = null;
+        
+        if (is_singular('business-listing')) {
+            $post_id = get_queried_object_id();
         }
-    }
-    
-    if (!$post_id) {
-        return '';
-    }
+        
+        if (!$post_id) {
+            global $post;
+            if ($post && $post->post_type === 'business-listing') {
+                $post_id = $post->ID;
+            }
+        }
+        
+        if (!$post_id) {
+            return '';
+        }
 
-    // Get address
-    $address = get_field('business_address', $post_id) ?: get_field('address', $post_id);
-    
-    if (!$address || trim($address) === '') {
-        return '';
-    }
+        $address = get_field('business_address', $post_id) ?: get_field('address', $post_id);
+        
+        if (!$address || trim($address) === '') {
+            return '';
+        }
 
-    $encoded_address = urlencode(trim($address));
-    
-    if ($atts['directions'] === 'true') {
-        $map_url = 'https://www.google.com/maps/dir/?api=1&destination=' . $encoded_address;
-        $default_text = 'Get Directions';
-    } else {
-        $map_url = 'https://www.google.com/maps/search/?api=1&query=' . $encoded_address;
-        $default_text = 'View on Google Maps';
+        $encoded_address = urlencode(trim($address));
+        
+        if ($atts['directions'] === 'true') {
+            $map_url = 'https://www.google.com/maps/dir/?api=1&destination=' . $encoded_address;
+            $default_text = 'Get Directions';
+        } else {
+            $map_url = 'https://www.google.com/maps/search/?api=1&query=' . $encoded_address;
+            $default_text = 'View on Google Maps';
+        }
+        
+        $link_text = ($atts['text'] === 'View on Google Maps' && $atts['directions'] === 'true') ? $default_text : $atts['text'];
+        
+        return '<a href="' . esc_url($map_url) . '" target="_blank" rel="noopener" class="business-map-link">' . esc_html($link_text) . '</a>';
+    }
+        
+    /**
+     * Simplified business current jobs shortcode
+     */
+    public function business_current_jobs_shortcode($atts) {
+        $business_id = get_the_ID();
+        if (!$business_id || get_post_type($business_id) !== 'business-listing') {
+            return '';
+        }
+
+        $jobs_query = new WP_Query(array(
+            'post_type' => 'job-listing',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'orderby' => 'date',
+            'order' => 'DESC',
+            'meta_query' => array(
+                array(
+                    'key' => 'business_name',
+                    'value' => '"' . $business_id . '"',
+                    'compare' => 'LIKE'
+                )
+            )
+        ));
+
+        if (!$jobs_query->have_posts()) {
+            $jobs_query = new WP_Query(array(
+                'post_type' => 'job-listing',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'meta_query' => array(
+                    array(
+                        'key' => 'business_name',
+                        'value' => $business_id,
+                        'compare' => '='
+                    )
+                )
+            ));
+        }
+
+        if (!$jobs_query->have_posts()) {
+            wp_reset_postdata();
+            return '';
+        }
+
+        ob_start();
+        ?>
+        <div class="business-current-jobs">
+            <div class="current-jobs-list">
+                <?php while ($jobs_query->have_posts()): $jobs_query->the_post(); ?>
+                    <?php
+                    $job_types = get_the_terms(get_the_ID(), 'job-type');
+                    $job_salary = get_field('job_salary_hourly_rate');
+                    ?>
+                    <div class="current-job-item">
+                        <div class="job-info">
+                            <h3 class="job-title">
+                                <a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
+                            </h3>
+                            
+                            <div class="job-meta">
+                                <?php if ($job_types && !is_wp_error($job_types)): ?>
+                                <span class="job-type"><?php echo esc_html($job_types[0]->name); ?></span>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($job_salary)): ?>
+                                <span class="job-salary"><?php echo esc_html($job_salary); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        
+                        <div class="job-actions">
+                            <a href="<?php the_permalink(); ?>" class="view-job-link">View Details</a>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            </div>
+        </div>
+        <?php
+        
+        wp_reset_postdata();
+        return ob_get_clean();
     }
     
-    $link_text = ($atts['text'] === 'View on Google Maps' && $atts['directions'] === 'true') ? $default_text : $atts['text'];
-    
-    return '<a href="' . esc_url($map_url) . '" target="_blank" rel="noopener" class="business-map-link">' . esc_html($link_text) . '</a>';
-}
+    /**
+     * Business submission form shortcode
+     */
+    public function business_submission_form_shortcode($atts) {
+        $categories = BusinessDirectory_Queries::get_business_categories();
+        
+        ob_start();
+        
+        if (isset($_GET['form_success'])) {
+            echo '<div class="form-message success">Thank you! Your business listing has been submitted and is under review. We\'ll notify you once it\'s approved.</div>';
+        }
+        if (isset($_GET['form_error'])) {
+            echo '<div class="form-message error">Error: ' . esc_html(urldecode($_GET['form_error'])) . '</div>';
+        }
+        ?>
+        
+       <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" enctype="multipart/form-data" class="business-submission-form">
+            <input type="hidden" name="action" value="business_listing_submit">
+            <?php wp_nonce_field('submit_business_listing', 'business_nonce'); ?>
+            
+            <div class="form-section">
+                <h3>Business Information</h3>
+                
+                <div class="form-group">
+                    <label for="business_name">Business Name *</label>
+                    <input type="text" name="business_name" id="business_name" required 
+                           value="<?php echo esc_attr($_POST['business_name'] ?? ''); ?>">
+                </div>
+                
+                <div class="form-group">
+                    <label for="business_email">Business Email *</label>
+                    <input type="email" name="business_email" id="business_email" required
+                           value="<?php echo esc_attr($_POST['business_email'] ?? ''); ?>">
+                    <small>This email will be used to link future job postings to your business</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="business_phone">Phone Number</label>
+                    <input type="tel" name="business_phone" id="business_phone"
+                           value="<?php echo esc_attr($_POST['business_phone'] ?? ''); ?>">
+                </div>
+                
+                <div class="form-group">
+                    <label for="business_website">Website</label>
+                    <input type="url" name="business_website" id="business_website" 
+                           placeholder="https://yourbusiness.com"
+                           value="<?php echo esc_attr($_POST['business_website'] ?? ''); ?>">
+                </div>
+                
+				<div class="form-group">
+   					<label for="google_business_url">Google Business Page URL</label>
+    				<input type="url" name="google_business_url" id="google_business_url" 
+							placeholder="https://www.google.com/maps/place/your-business"
+           					value="<?php echo esc_attr($_POST['google_business_url'] ?? ''); ?>">
+    				<small>Visit your Google Business Profile and click on the "Share" link or icon. Copy that link and insert it here.</small>
+				</div>
+                
+                <div class="form-group">
+                    <label for="business_address">Business Address *</label>
+                    <textarea name="business_address" id="business_address" required><?php echo esc_textarea($_POST['business_address'] ?? ''); ?></textarea>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>Business Details</h3>
+                
+                <div class="form-group">
+                    <label for="business_description">Business Description *</label>
+                    <textarea name="business_description" id="business_description" required 
+                              placeholder="Tell us about your business, services, and what makes you special"><?php echo esc_textarea($_POST['business_description'] ?? ''); ?></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="search_keywords">Search Keywords</label>
+                    <textarea name="search_keywords" id="search_keywords" 
+                              placeholder="restaurant, pizza, delivery, takeout"><?php echo esc_textarea($_POST['search_keywords'] ?? ''); ?></textarea>
+                    <small>Add keywords customers might search for (separated by commas)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="business_logo">Business Logo/Photo</label>
+                    <input type="file" name="business_logo" id="business_logo" accept="image/*">
+                    <small>Upload your business logo or a photo (JPG, PNG, GIF - Max 5MB)</small>
+                </div>
+            </div>
+            
+            <?php if (!empty($categories)): ?>
+            <div class="form-section">
+                <h3>Business Categories *</h3>
+                <div class="categories-grid">
+                    <?php foreach ($categories as $category): ?>
+                    <label class="category-option">
+                        <input type="checkbox" name="business_categories[]" value="<?php echo esc_attr($category->name); ?>"
+                               <?php checked(in_array($category->name, $_POST['business_categories'] ?? [])); ?>>
+                        <span><?php echo esc_html($category->name); ?></span>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <div class="form-submit">
+                <button type="submit" name="submit_business_listing" class="submit-btn">
+                    Submit Business Listing
+                </button>
+            </div>
+        </form>
+        
+        <?php
+        return ob_get_clean();
+    }
     
     /**
      * Render a single business card
@@ -879,206 +1016,7 @@ public function business_map_link_shortcode($atts) {
     private function render_category_header($current_category, $atts) {
         include BUSINESS_DIRECTORY_PLUGIN_DIR . 'templates/category-header.php';
     }
-
-/**
- * Simplified business current jobs shortcode - no parameters, no title, just the listings
- */
-public function business_current_jobs_shortcode($atts) {
-    // Get current business ID
-    $business_id = get_the_ID();
-    if (!$business_id || get_post_type($business_id) !== 'business-listing') {
-        return '';
-    }
-
-    // Query jobs where the business_name field contains this business ID
-    $jobs_query = new WP_Query(array(
-        'post_type' => 'job-listing',
-        'post_status' => 'publish',
-        'posts_per_page' => -1, // Show all jobs
-        'orderby' => 'date',
-        'order' => 'DESC',
-        'meta_query' => array(
-            array(
-                'key' => 'business_name',
-                'value' => '"' . $business_id . '"',
-                'compare' => 'LIKE'
-            )
-        )
-    ));
-
-    // If no results, try alternative query methods
-    if (!$jobs_query->have_posts()) {
-        $jobs_query = new WP_Query(array(
-            'post_type' => 'job-listing',
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'orderby' => 'date',
-            'order' => 'DESC',
-            'meta_query' => array(
-                array(
-                    'key' => 'business_name',
-                    'value' => $business_id,
-                    'compare' => '='
-                )
-            )
-        ));
-    }
-
-    if (!$jobs_query->have_posts()) {
-        wp_reset_postdata();
-        return '';
-    }
-
-    ob_start();
-    ?>
-    <div class="business-current-jobs">
-        <div class="current-jobs-list">
-            <?php while ($jobs_query->have_posts()): $jobs_query->the_post(); ?>
-                <?php
-                $job_types = get_the_terms(get_the_ID(), 'job-type');
-                $job_salary = get_field('job_salary_hourly_rate');
-                ?>
-                <div class="current-job-item">
-                    <div class="job-info">
-                        <h3 class="job-title">
-                            <a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
-                        </h3>
-                        
-                        <div class="job-meta">
-                            <?php if ($job_types && !is_wp_error($job_types)): ?>
-                            <span class="job-type"><?php echo esc_html($job_types[0]->name); ?></span>
-                            <?php endif; ?>
-                            
-                            <?php if (!empty($job_salary)): ?>
-                            <span class="job-salary"><?php echo esc_html($job_salary); ?></span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    
-                    <div class="job-actions">
-                        <a href="<?php the_permalink(); ?>" class="view-job-link">View Details</a>
-                    </div>
-                </div>
-            <?php endwhile; ?>
-        </div>
-    </div>
-    <?php
     
-    wp_reset_postdata();
-    return ob_get_clean();
+    // Add all your other shortcode methods here...
+    // (business_description_shortcode, business_phone_button_shortcode, etc.)
 }
-/**
-     * Business Listing Submission Form Shortcode
-     * Usage: [business_listing_submission_form]
-     */
-    public static function business_listing_submission_form() {
-        $output = '';
-        $offer_message = '<div class="alert alert-info">Don\'t have a Google Business Page? Westover Web will create one for you at a discounted rate!</div>';
-        $admin_email = get_option('admin_email');
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bd_submit_listing'])) {
-
-            if (!isset($_POST['bd_nonce']) || !wp_verify_nonce($_POST['bd_nonce'], 'bd_submit_listing')) {
-                $output .= '<div class="alert alert-danger">Security check failed. Please try again.</div>';
-            } else {
-                $business_name = sanitize_text_field($_POST['business_name'] ?? '');
-                $business_phone = sanitize_text_field($_POST['business_phone'] ?? '');
-                $business_email = sanitize_email($_POST['business_email'] ?? '');
-                $business_website = esc_url_raw($_POST['business_website'] ?? '');
-                $business_address = sanitize_text_field($_POST['business_address'] ?? '');
-                $business_description = wp_kses_post($_POST['business_description'] ?? '');
-                $search_keywords = sanitize_text_field($_POST['search_keywords'] ?? '');
-                $google_business_url = esc_url_raw($_POST['google_business_url'] ?? '');
-
-                $business_logo_id = '';
-                if (!empty($_FILES['business_logo']['name'])) {
-                    require_once(ABSPATH . 'wp-admin/includes/file.php');
-                    require_once(ABSPATH . 'wp-admin/includes/image.php');
-                    $uploaded = media_handle_upload('business_logo', 0);
-                    if (!is_wp_error($uploaded)) {
-                        $business_logo_id = $uploaded;
-                    }
-                }
-
-                $post_id = wp_insert_post([
-                    'post_title'    => $business_name,
-                    'post_type'     => 'business-listing',
-                    'post_status'   => 'pending',
-                ]);
-
-                if ($post_id && !is_wp_error($post_id)) {
-                    // Set ACF fields
-                    update_field('business_phone', $business_phone, $post_id);
-                    update_field('business_email', $business_email, $post_id);
-                    update_field('business_website', $business_website, $post_id);
-                    update_field('business_address', $business_address, $post_id);
-                    update_field('business_logo', $business_logo_id, $post_id);
-                    update_field('business_description', $business_description, $post_id);
-                    update_field('search_keywords', $search_keywords, $post_id);
-                    update_field('google_business_url', $google_business_url, $post_id);
-
-                    // Send admin notification
-                    $message = "New business listing submitted:\n\n";
-                    $message .= "Name: $business_name\n";
-                    $message .= "Phone: $business_phone\n";
-                    $message .= "Email: $business_email\n";
-                    $message .= "Website: $business_website\n";
-                    $message .= "Address: $business_address\n";
-                    $message .= "Google Business URL: $google_business_url\n";
-                    $message .= "Description: $business_description\n";
-                    $message .= "Search Keywords: $search_keywords\n";
-                    $message .= "\nApprove in WP Admin.";
-
-                    wp_mail($admin_email, "Business Listing Submission: $business_name", $message);
-
-                    $output .= '<div class="alert alert-success">Thank you for your submission! Your listing will be reviewed and approved soon.</div>';
-                } else {
-                    $output .= '<div class="alert alert-danger">There was an error submitting your listing. Please try again.</div>';
-                }
-            }
-        }
-
-        ob_start();
-        ?>
-        <form method="POST" enctype="multipart/form-data" class="bd-business-listing-form">
-            <?php wp_nonce_field('bd_submit_listing', 'bd_nonce'); ?>
-
-            <label for="business_name">Business Name *</label>
-            <input type="text" name="business_name" id="business_name" required>
-
-            <label for="business_phone">Phone</label>
-            <input type="text" name="business_phone" id="business_phone">
-
-            <label for="business_email">Email</label>
-            <input type="email" name="business_email" id="business_email">
-
-            <label for="business_website">Website</label>
-            <input type="url" name="business_website" id="business_website">
-
-            <label for="business_address">Address</label>
-            <input type="text" name="business_address" id="business_address">
-
-            <label for="business_logo">Logo</label>
-            <input type="file" name="business_logo" id="business_logo" accept="image/*">
-
-            <label for="business_description">Description</label>
-            <textarea name="business_description" id="business_description" rows="4"></textarea>
-
-            <label for="search_keywords">Search Keywords</label>
-            <input type="text" name="search_keywords" id="search_keywords">
-
-            <label for="google_business_url">Google Business Page URL</label>
-            <input type="url" name="google_business_url" id="google_business_url">
-            <?php if (empty($_POST['google_business_url'] ?? '')): ?>
-                <?php echo $offer_message; ?>
-            <?php endif; ?>
-
-            <button type="submit" name="bd_submit_listing">Submit Listing</button>
-        </form>
-        <?php
-        $output .= ob_get_clean();
-        return $output;
-    }
-}
-}
-?>
