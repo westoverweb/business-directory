@@ -15,6 +15,10 @@ class BusinessDirectory_Admin {
         add_action('admin_notices', array($this, 'admin_notices'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+
+        // Add featured listing functionality
+        add_action('add_meta_boxes', array($this, 'add_featured_meta_box'));
+        add_action('save_post_business-listing', array($this, 'save_featured_meta_box'));
     }
     
     public function admin_menu() {
@@ -168,7 +172,7 @@ class BusinessDirectory_Admin {
                         </tr>
                         <tr>
                             <td><code>orderby</code></td>
-                            <td>title</td>
+                            <td>rand</td>
                             <td>Sort by: title, date, menu_order, rand</td>
                         </tr>
                         <tr>
@@ -176,10 +180,15 @@ class BusinessDirectory_Admin {
                             <td>ASC</td>
                             <td>Sort order: ASC or DESC</td>
                         </tr>
+                        <tr>
+                            <td><code>show_featured_first</code></td>
+                            <td>true</td>
+                            <td>Show featured listings first (true/false)</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="card">
                 <h2>Category Template Shortcode</h2>
                 <p>Use this shortcode in your Divi Business Category template:</p>
@@ -212,7 +221,7 @@ class BusinessDirectory_Admin {
                         </tr>
                         <tr>
                             <td><code>orderby</code></td>
-                            <td>title</td>
+                            <td>rand</td>
                             <td>Sort by: title, date, menu_order, rand</td>
                         </tr>
                         <tr>
@@ -220,10 +229,15 @@ class BusinessDirectory_Admin {
                             <td>ASC</td>
                             <td>Sort order: ASC or DESC</td>
                         </tr>
+                        <tr>
+                            <td><code>show_featured_first</code></td>
+                            <td>true</td>
+                            <td>Show featured listings first (true/false)</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="card">
                 <h2>Categories Grid Shortcode</h2>
                 <p>Use this shortcode to display a grid of business categories with icons:</p>
@@ -477,6 +491,73 @@ class BusinessDirectory_Admin {
                 <p><strong>Business Directory:</strong> "Business Categories" taxonomy not found. Please make sure it's properly registered.</p>
             </div>
             <?php
+        }
+    }
+
+    /**
+     * Add featured listing meta box
+     */
+    public function add_featured_meta_box() {
+        add_meta_box(
+            'business_featured',
+            'Featured Listing',
+            array($this, 'render_featured_meta_box'),
+            'business-listing',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Render the featured listing meta box
+     */
+    public function render_featured_meta_box($post) {
+        wp_nonce_field('business_featured_meta_box', 'business_featured_meta_box_nonce');
+
+        $is_featured = get_post_meta($post->ID, '_business_featured', true);
+        ?>
+        <div style="padding: 10px 0;">
+            <label for="business_featured" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox"
+                       name="business_featured"
+                       id="business_featured"
+                       value="1"
+                       <?php checked($is_featured, '1'); ?>
+                       style="margin: 0;">
+                <span style="font-weight: 500;">Mark this listing as featured</span>
+            </label>
+            <p class="description" style="margin: 10px 0 0 0; padding-left: 0;">
+                Featured listings will appear first in category listings and search results.
+            </p>
+        </div>
+        <?php
+    }
+
+    /**
+     * Save the featured listing meta box value
+     */
+    public function save_featured_meta_box($post_id) {
+        // Check nonce
+        if (!isset($_POST['business_featured_meta_box_nonce']) ||
+            !wp_verify_nonce($_POST['business_featured_meta_box_nonce'], 'business_featured_meta_box')) {
+            return;
+        }
+
+        // Check autosave
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        // Check permissions
+        if (!current_user_can('edit_post', $post_id)) {
+            return;
+        }
+
+        // Save or delete the meta value
+        if (isset($_POST['business_featured'])) {
+            update_post_meta($post_id, '_business_featured', '1');
+        } else {
+            delete_post_meta($post_id, '_business_featured');
         }
     }
 }

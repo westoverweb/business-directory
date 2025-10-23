@@ -11,22 +11,42 @@ class BusinessDirectory_Queries {
             'posts_per_page' => -1,
             'post_type' => 'business-listing',
             'post_status' => 'publish',
-            'orderby' => 'title',
+            'orderby' => 'rand',
             'order' => 'ASC',
             'category' => '',
-            'featured_first' => false,
+            'featured_first' => true,
         );
-        
+
         $args = wp_parse_args($args, $defaults);
-        
+
         $query_args = array(
             'post_type' => $args['post_type'],
             'posts_per_page' => $args['posts_per_page'],
             'post_status' => $args['post_status'],
-            'orderby' => $args['orderby'],
-            'order' => $args['order'],
         );
-        
+
+        // Handle featured-first ordering
+        if ($args['featured_first']) {
+            $query_args['meta_query'] = array(
+                'relation' => 'OR',
+                'featured_clause' => array(
+                    'key' => '_business_featured',
+                    'compare' => 'EXISTS',
+                ),
+                'not_featured_clause' => array(
+                    'key' => '_business_featured',
+                    'compare' => 'NOT EXISTS',
+                ),
+            );
+            $query_args['orderby'] = array(
+                'featured_clause' => 'DESC',
+                $args['orderby'] => $args['order'],
+            );
+        } else {
+            $query_args['orderby'] = $args['orderby'];
+            $query_args['order'] = $args['order'];
+        }
+
         if (!empty($args['category'])) {
             $query_args['tax_query'] = array(
                 array(
@@ -36,25 +56,24 @@ class BusinessDirectory_Queries {
                 ),
             );
         }
-        
+
         return new WP_Query($query_args);
     }
     
     public static function get_businesses_by_category($category_id, $args = array()) {
         $defaults = array(
             'posts_per_page' => -1,
-            'orderby' => 'title',
+            'orderby' => 'rand',
             'order' => 'ASC',
+            'featured_first' => true,
         );
-        
+
         $args = wp_parse_args($args, $defaults);
-        
+
         $query_args = array(
             'post_type' => 'business-listing',
             'posts_per_page' => $args['posts_per_page'],
             'post_status' => 'publish',
-            'orderby' => $args['orderby'],
-            'order' => $args['order'],
             'tax_query' => array(
                 array(
                     'taxonomy' => 'business-category',
@@ -63,7 +82,29 @@ class BusinessDirectory_Queries {
                 ),
             ),
         );
-        
+
+        // Handle featured-first ordering
+        if ($args['featured_first']) {
+            $query_args['meta_query'] = array(
+                'relation' => 'OR',
+                'featured_clause' => array(
+                    'key' => '_business_featured',
+                    'compare' => 'EXISTS',
+                ),
+                'not_featured_clause' => array(
+                    'key' => '_business_featured',
+                    'compare' => 'NOT EXISTS',
+                ),
+            );
+            $query_args['orderby'] = array(
+                'featured_clause' => 'DESC',
+                $args['orderby'] => $args['order'],
+            );
+        } else {
+            $query_args['orderby'] = $args['orderby'];
+            $query_args['order'] = $args['order'];
+        }
+
         return new WP_Query($query_args);
     }
     

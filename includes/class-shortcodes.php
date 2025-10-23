@@ -64,8 +64,8 @@ class BusinessDirectory_Shortcodes {
             'columns' => '3',
             'show_excerpt' => 'true',
             'excerpt_length' => 150,
-            'show_featured_first' => 'false',
-            'orderby' => 'title',
+            'show_featured_first' => 'true',
+            'orderby' => 'rand',
             'order' => 'ASC',
             'show_dynamic_title' => 'true',
             'show_search_status' => 'true',
@@ -144,6 +144,7 @@ class BusinessDirectory_Shortcodes {
                     'category' => $atts['category'],
                     'orderby' => $atts['orderby'],
                     'order' => $atts['order'],
+                    'featured_first' => ($atts['show_featured_first'] === 'true'),
                 ));
                 
                 if ($business_query->have_posts()):
@@ -245,8 +246,9 @@ class BusinessDirectory_Shortcodes {
             'columns' => '3',
             'show_excerpt' => 'true',
             'excerpt_length' => 150,
-            'orderby' => 'title',
+            'orderby' => 'rand',
             'order' => 'ASC',
+            'show_featured_first' => 'true',
             'show_category_title' => 'true',
             'show_category_description' => 'true',
         ), $atts);
@@ -282,6 +284,7 @@ class BusinessDirectory_Shortcodes {
                     'posts_per_page' => $atts['posts_per_page'],
                     'orderby' => $atts['orderby'],
                     'order' => $atts['order'],
+                    'featured_first' => ($atts['show_featured_first'] === 'true'),
                 ));
                 
                 if ($business_query->have_posts()):

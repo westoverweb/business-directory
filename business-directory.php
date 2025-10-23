@@ -3,7 +3,7 @@
  * Plugin Name: Business Directory
  * Plugin URI: https://chelseabusiness.com
  * Description: A complete business directory solution with search and filtering capabilities for ACF-powered business listings.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: Ben DeLoach
  * License: GPL v2 or later
  */
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('BUSINESS_DIRECTORY_VERSION', '2.0.1'); // Bump this version
+define('BUSINESS_DIRECTORY_VERSION', '2.1.0');
 define('BUSINESS_DIRECTORY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BUSINESS_DIRECTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
 
